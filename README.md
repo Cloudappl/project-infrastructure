@@ -1,4 +1,4 @@
-# Gorillaz fan page APP
+# Gorillaz fan page 
 
 
 ## Table of contents
