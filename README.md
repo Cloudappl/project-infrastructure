@@ -33,7 +33,6 @@ To run this project, you need to have installed:
 - latest pip version
 
 ## Documentation
-- https://docs.microsoft.com/en-us/azure/app-service/tutorial-custom-container?pivots=container-linux
 
 
 ## Steps
