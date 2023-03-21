@@ -1,101 +1,89 @@
-variable "region" {
-  default = "us-west-2"
-}
-
-variable "domain_name" {
-  default = "mikeball.me"
+terraform {
+  backend "local" {
+    path = "terraform.tfstate"
+  }
 }
 
 provider "aws" {
-  region = "${var.region}"
+  access_key = "mock_access_key"
+  secret_key = "mock_secret_key"
+  region     = "us-east-1"
+  s3_force_path_style = true
+  skip_credentials_validation = true
+  skip_metadata_api_check = true
+  skip_requesting_account_id = true
+  endpoint   = "http://localhost:4566"
 }
 
-resource "aws_s3_bucket" "site" {
-  bucket = "${var.domain_name}"
-  region = "${var.region}"
-  acl = "public-read"
-  website {
-    index_document = "index.html"
-    error_document = "error.html"
+variable "app_name" {
+  default = "my-flask-app"
+}
+
+
+resource "aws_vpc" "localstack_vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "localstack_subnet" {
+  vpc_id     = aws_vpc.localstack_vpc.id
+  cidr_block = "10.0.1.0/24"
+}
+
+resource "aws_security_group" "localstack_sg" {
+  name_prefix = "${var.app_name}-sg"
+  vpc_id      = aws_vpc.localstack_vpc.id
+
+  ingress {
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Sid": "PublicReadForGetBucketObjects",
-    "Effect": "Allow",
-    "Principal": "*",
-    "Action": "s3:GetObject",
-    "Resource": ["arn:aws:s3:::${var.domain_name}/*"]
-  }]
-}
-EOF
-}
-
-resource "aws_s3_bucket" "wwwsite" {
-  bucket = "www.${var.domain_name}"
-  region = "${var.region}"
-  acl = "public-read"
-  website {
-    redirect_all_requests_to = "${var.domain_name}"
-  }
-}
-
-resource "aws_s3_bucket_object" "index_file" {
-  bucket = "${var.domain_name}"
-  source = "../dist/index.html"
-  key = "index.html"
-  etag = "${md5(file("../dist/index.html"))}"
-  content_type = "text/html"
-  depends_on = [
-    "aws_s3_bucket.site"
-  ]
-}
-
-resource "aws_s3_bucket_object" "error_file" {
-  bucket = "${var.domain_name}"
-  source = "../dist/error.html"
-  key = "error.html"
-  etag = "${md5(file("../dist/error.html"))}"
-  content_type = "text/html"
-  depends_on = [
-    "aws_s3_bucket.site"
-  ]
-}
-
-resource "aws_s3_bucket_object" "css_file" {
-  bucket = "${var.domain_name}"
-  source = "../dist/assets/stylesheets/application.css"
-  key = "assets/stylesheets/application.css"
-  etag = "${md5(file("../dist/assets/stylesheets/application.css"))}"
-  content_type = "text/css"
-  depends_on = [
-    "aws_s3_bucket.site"
-  ]
-}
-
-resource "aws_s3_bucket_object" "image_file" {
-  bucket = "${var.domain_name}"
-  source = "../dist/assets/images/scape_long.png"
-  key = "assets/images/scape_long.png"
-  etag = "${md5(file("../dist/assets/images/scape_long.png"))}"
-  content_type = "image/png"
-  depends_on = [
-    "aws_s3_bucket.site"
-  ]
-}
-
-resource "aws_route53_zone" "primary" {
-  name = "${var.domain_name}"
-}
-
-resource "aws_route53_record" "site" {
-  zone_id = "${aws_route53_zone.primary.zone_id}"
-  name = "${var.domain_name}"
-  type = "A"
-  alias {
-    name = "${aws_s3_bucket.site.website_domain}"
-    zone_id = "${aws_s3_bucket.site.hosted_zone_id}"
-    evaluate_target_health = false
+  egress {
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+resource "aws_ecs_task_definition" "localstack_app_task" {
+  family                   = "${var.app_name}-task"
+  container_definitions    = jsonencode([
+    {
+      name      = "${var.app_name}-container"
+      image     = "my-flask-app-image"
+      portMappings = [
+        {
+          containerPort = 5000
+          hostPort      = 5000
+        },
+      ],
+      essential = true
+    }
+  ])
+}
+
+resource "aws_ecs_service" "localstack_app_service" {
+  name            = "${var.app_name}-service"
+  cluster         = "${var.app_name}-cluster"
+  task_definition = aws_ecs_task_definition.localstack_app_task.arn
+  desired_count   = 1
+
+  network_configuration {
+    subnets          = [aws_subnet.localstack_subnet.id]
+    security_groups  = [aws_security_group.localstack_sg.id]
+  }
+  load_balancer {
+    target_group_arn = aws_lb_target_group.localstack_app_target_group.arn
+    container_name   = "${var.app_name}-container"
+    container_port   = 5000
+  }
+}
+
+resource "aws_lb_target_group" "localstack_app_target_group" {
+  name_prefix        = "${var.app_name}-tg"
+  port               = 5000
+  protocol           = "HTTP"
+  vpc_id             = aws_vpc.localstack_vpc.id
+  target_type        = "ip"
