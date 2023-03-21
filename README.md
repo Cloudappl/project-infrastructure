@@ -14,7 +14,7 @@
 
 ## General info
 
-Complete guide how to deploy web application on Azure App Services.
+Complete guide how to deploy web application on Localstack using Docker and Terraform.
 
 
 
@@ -39,7 +39,8 @@ To run this project, you need to have installed:
 - Python
 
 ## Documentation
-
+https://docs.localstack.cloud/tutorials/lambda-ecr-container-images/
+https://docs.localstack.cloud/user-guide/aws/elastic-compute-cloud/
 
 ## Steps
 
