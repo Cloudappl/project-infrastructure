@@ -39,8 +39,9 @@ To run this project, you need to have installed:
 - Python
 
 ## Documentation
-https://docs.localstack.cloud/tutorials/lambda-ecr-container-images/
-https://docs.localstack.cloud/user-guide/aws/elastic-compute-cloud/
+- https://docs.localstack.cloud/tutorials/lambda-ecr-container-images/
+---
+- https://docs.localstack.cloud/user-guide/aws/elastic-compute-cloud/
 
 ## Steps
 
